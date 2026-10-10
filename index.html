@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>海大海廢社群地圖</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">NTOU Marine Debris Map</p>
+        <h1>海大海廢社群地圖</h1>
+      </div>
+      <button id="homeBtn" type="button">回到海大</button>
+    </header>
+
+    <main class="layout">
+      <section class="map-section" aria-label="海洋廢棄物互動地圖">
+        <div class="filter-bar" aria-label="分類篩選">
+          <button class="filter active" data-filter="all" type="button">全部</button>
+          <button class="filter activity" data-filter="activity" type="button">活動</button>
+          <button class="filter trash" data-filter="trash" type="button">垃圾</button>
+          <button class="filter beach-clean" data-filter="beach-clean" type="button">淨灘</button>
+          <label class="status-toggle">
+            <input id="showCleanedToggle" type="checkbox">
+            顯示已清理區
+          </label>
+        </div>
+        <div class="map-wrap">
+          <div id="map"></div>
+          <div class="map-actions" aria-label="地圖操作">
+            <button id="addMarkerBtn" class="map-action primary" type="button">新增標記</button>
+            <button id="myLocationBtn" class="map-action" type="button">我的位置</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="sidebar" aria-label="新增回報與淨灘活動">
+        <section id="locationChoicePanel" class="panel hidden">
+          <div class="panel-title">
+            <h2>選擇標記位置</h2>
+            <button id="closeChoiceBtn" type="button" aria-label="關閉位置選擇">×</button>
+          </div>
+          <p class="hint">可以使用裝置 GPS，也可以在地圖上手動點選位置。</p>
+          <div class="choice-actions">
+            <button id="useGpsBtn" class="primary" type="button">使用當前 GPS 位置</button>
+            <button id="manualPickBtn" type="button">地圖手動點擊</button>
+          </div>
+        </section>
+
+        <section id="formPanel" class="panel hidden">
+          <div class="panel-title">
+            <h2>新增回報</h2>
+            <button id="closeFormBtn" type="button" aria-label="關閉表單">×</button>
+          </div>
+          <p id="pickedLocation" class="hint">請先點擊地圖選擇位置。</p>
+          <form id="markerForm" novalidate>
+            <label>
+              分類
+              <select name="category" id="category" required>
+                <option value="trash">垃圾</option>
+                <option value="activity">活動</option>
+                <option value="beach-clean">淨灘</option>
+              </select>
+            </label>
+
+            <label id="trashLevelField">
+              垃圾程度
+              <select name="trashLevel">
+                <option value="light">輕微</option>
+                <option value="medium">中等</option>
+                <option value="heavy">嚴重</option>
+              </select>
+            </label>
+
+            <label>
+              標題
+              <input name="title" maxlength="120" required placeholder="例如：八斗子岸邊漂流物">
+            </label>
+
+            <label>
+              文字敘述
+              <textarea name="description" maxlength="2000" rows="4" placeholder="補充地點、數量或集合方式"></textarea>
+            </label>
+
+            <div id="timeFields" class="time-grid hidden">
+              <label>
+                開始時間
+                <input name="startAt" type="datetime-local">
+              </label>
+              <label>
+                結束時間
+                <input name="endAt" type="datetime-local">
+              </label>
+            </div>
+
+            <label>
+              圖片
+              <input name="image" type="file" accept="image/*">
+            </label>
+
+            <p id="formError" class="error" role="alert"></p>
+            <button class="primary" type="submit">送出回報</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2>即將到來的淨灘活動</h2>
+          <div id="eventsList" class="events-list"></div>
+        </section>
+      </aside>
+    </main>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

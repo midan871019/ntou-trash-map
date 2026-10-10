@@ -13,7 +13,10 @@
         <p class="eyebrow">NTOU Marine Debris Map</p>
         <h1>海大海廢社群地圖</h1>
       </div>
-      <button id="homeBtn" type="button">回到海大</button>
+      <div class="topbar-actions">
+        <button id="profileBtn" type="button">個人主頁</button>
+        <button id="homeBtn" type="button">回到海大</button>
+      </div>
     </header>
 
     <main class="layout">
@@ -26,6 +29,18 @@
           <label class="status-toggle">
             <input id="showCleanedToggle" type="checkbox">
             顯示已清理區
+          </label>
+          <label class="status-toggle">
+            <input id="showExpiredToggle" type="checkbox">
+            顯示歷史活動
+          </label>
+          <label class="date-filter">
+            起
+            <input id="rangeStartInput" type="date">
+          </label>
+          <label class="date-filter">
+            迄
+            <input id="rangeEndInput" type="date">
           </label>
         </div>
         <div class="map-wrap">
@@ -52,7 +67,7 @@
 
         <section id="formPanel" class="panel hidden">
           <div class="panel-title">
-            <h2>新增回報</h2>
+            <h2 id="formTitle">新增回報</h2>
             <button id="closeFormBtn" type="button" aria-label="關閉表單">×</button>
           </div>
           <p id="pickedLocation" class="hint">請先點擊地圖選擇位置。</p>
@@ -75,6 +90,35 @@
               </select>
             </label>
 
+            <div id="trashAdvancedFields" class="trash-advanced">
+              <label>
+                預估數量 / 袋數
+                <input name="quantity" id="quantityInput" type="number" min="0" step="1" placeholder="例如：3">
+              </label>
+              <input name="carbonSaved" id="carbonSavedInput" type="hidden" value="0">
+              <div id="carbonPreview" class="carbon-preview">預估碳減量：0 kg CO2e</div>
+              <fieldset class="trash-type-fieldset">
+                <legend>垃圾類別與特殊狀況</legend>
+                <label><input name="trashTypes" type="checkbox" value="一般塑膠"> 一般塑膠</label>
+                <label><input name="trashTypes" type="checkbox" value="保麗龍"> 保麗龍</label>
+                <label><input name="trashTypes" type="checkbox" value="玻璃金屬"> 玻璃 / 金屬</label>
+                <label><input name="trashTypes" type="checkbox" value="漁網繩索"> 漁網 / 繩索</label>
+                <label><input name="trashTypes" type="checkbox" value="易燃毒化物質"> 易燃毒化物質</label>
+                <label><input name="trashTypes" type="checkbox" value="醫療廢棄物"> 醫療廢棄物</label>
+                <label><input name="trashTypes" type="checkbox" value="爆裂物軍火"> 爆裂物 / 軍火</label>
+                <label><input name="trashTypes" type="checkbox" value="動物屍體"> 動物屍體</label>
+                <label><input name="trashTypes" type="checkbox" value="海龜鯨豚"> 海龜 / 鯨豚</label>
+                <label><input name="trashTypes" type="checkbox" value="疑似豬屍"> 疑似非洲豬瘟豬屍</label>
+                <label><input name="trashTypes" type="checkbox" value="大量魚群死亡或水質污染"> 大量魚群死亡或水質污染</label>
+              </fieldset>
+              <div id="riskPreview" class="hidden"></div>
+            </div>
+
+            <label>
+              顯示暱稱
+              <input name="displayName" id="displayNameInput" maxlength="80" placeholder="例如：海大志工">
+            </label>
+
             <label>
               標題
               <input name="title" maxlength="120" required placeholder="例如：八斗子岸邊漂流物">
@@ -87,6 +131,22 @@
 
             <div id="timeFields" class="time-grid hidden">
               <label>
+                發起人員 / 主辦單位
+                <input name="organizer" maxlength="120" placeholder="例如：海洋志工社">
+              </label>
+              <label>
+                發起人員信箱
+                <input name="organizerEmail" type="email" maxlength="160" placeholder="contact@example.com">
+              </label>
+              <label>
+                活動地點
+                <input name="locationName" maxlength="160" placeholder="例如：八斗子潮境公園入口">
+              </label>
+              <label>
+                活動 / 報名網址
+                <input name="eventUrl" type="url" maxlength="500" placeholder="https://...">
+              </label>
+              <label>
                 開始時間
                 <input name="startAt" type="datetime-local">
               </label>
@@ -94,16 +154,42 @@
                 結束時間
                 <input name="endAt" type="datetime-local">
               </label>
+              <label id="maxParticipantsField">
+                報名人數上限
+                <input name="maxParticipants" type="number" min="0" step="1" placeholder="0 表示不限人數">
+              </label>
             </div>
 
             <label>
               圖片
-              <input name="image" type="file" accept="image/*">
+              <input name="images" type="file" accept="image/*" multiple>
             </label>
 
             <p id="formError" class="error" role="alert"></p>
             <button class="primary" type="submit">送出回報</button>
           </form>
+        </section>
+
+        <section id="profilePanel" class="panel hidden">
+          <div class="panel-title">
+            <h2>個人主頁</h2>
+            <button id="closeProfileBtn" type="button" aria-label="關閉個人主頁">×</button>
+          </div>
+          <form id="profileForm" novalidate>
+            <label>
+              顯示暱稱
+              <input name="displayName" maxlength="80" placeholder="例如：海大志工">
+            </label>
+            <label>
+              個人敘述 / 聯繫方式
+              <textarea name="bio" maxlength="500" rows="3" placeholder="可填聯繫方式、社群帳號或想公開的說明"></textarea>
+            </label>
+            <button class="primary" type="submit">儲存個人資料</button>
+          </form>
+          <div class="profile-posts">
+            <h3>我的貼文</h3>
+            <div id="myMarkersList" class="events-list"></div>
+          </div>
         </section>
 
         <section class="panel">
@@ -112,6 +198,16 @@
         </section>
       </aside>
     </main>
+
+    <section id="detailPanel" class="detail-panel hidden" aria-label="完整內容">
+      <div class="detail-card">
+        <div class="panel-title">
+          <h2 id="detailTitle">完整內容</h2>
+          <button id="closeDetailBtn" type="button" aria-label="關閉完整內容">×</button>
+        </div>
+        <div id="detailBody" class="detail-body"></div>
+      </div>
+    </section>
 
     <div id="toast" class="toast hidden" role="status"></div>
 

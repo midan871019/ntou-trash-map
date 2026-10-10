@@ -33,6 +33,13 @@ body {
   background: linear-gradient(90deg, #0d5c7a, #13735f);
 }
 
+.topbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   font-size: 0.82rem;
@@ -142,6 +149,24 @@ button {
   width: auto;
 }
 
+.date-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.date-filter input {
+  width: 132px;
+  padding: 6px;
+}
+
 #map {
   height: calc(100vh - 144px);
   min-height: 520px;
@@ -202,6 +227,14 @@ button {
   font-size: 1.4rem;
 }
 
+#closeProfileBtn {
+  width: 40px;
+  padding: 0;
+  color: var(--muted);
+  background: #eef3f4;
+  font-size: 1.4rem;
+}
+
 .choice-actions {
   display: grid;
   gap: 10px;
@@ -245,6 +278,50 @@ textarea {
   gap: 10px;
 }
 
+.trash-advanced {
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbfb;
+}
+
+.carbon-preview {
+  margin: 0 0 12px;
+  padding: 10px;
+  border-radius: 6px;
+  color: #15523f;
+  background: #e7f5ee;
+  font-weight: 800;
+}
+
+.trash-type-fieldset {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.trash-type-fieldset legend {
+  padding: 0 6px;
+  font-weight: 800;
+}
+
+.trash-type-fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.trash-type-fieldset input {
+  width: auto;
+}
+
 .hint {
   color: var(--muted);
   font-size: 0.92rem;
@@ -259,6 +336,9 @@ textarea {
 .events-list {
   display: grid;
   gap: 12px;
+  max-height: 520px;
+  overflow: auto;
+  padding-right: 2px;
 }
 
 .event-item {
@@ -274,10 +354,189 @@ textarea {
   font-size: 1rem;
 }
 
+.event-focus {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  color: var(--blue);
+  background: transparent;
+  font-weight: 800;
+  text-align: left;
+}
+
+.profile-posts {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.marker-actions,
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.marker-actions button,
+.profile-actions button {
+  min-height: 34px;
+  padding: 0 10px;
+  color: var(--ink);
+  background: #e9f1f3;
+}
+
+.marker-actions .danger {
+  color: #fff;
+  background: var(--red);
+}
+
+.user-link {
+  min-height: auto;
+  padding: 0;
+  color: var(--blue);
+  background: transparent;
+  font-weight: 800;
+  text-align: left;
+}
+
+.user-profile-card {
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbfb;
+}
+
+.clamped-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.detail-btn {
+  min-height: 34px;
+  margin: 8px 0;
+  padding: 0 10px;
+  color: var(--blue);
+  background: #e8f3f6;
+}
+
+.join-box {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.join-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.progress {
+  height: 9px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dfeaec;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--green);
+}
+
+.join-marker-btn {
+  color: #fff;
+  background: var(--green);
+}
+
+.join-marker-btn:disabled {
+  cursor: not-allowed;
+  background: #9aacb1;
+}
+
+.trash-meta {
+  margin: 8px 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f3f8f7;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.trash-meta p {
+  margin-bottom: 4px;
+}
+
+.trash-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.trash-tags span {
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: #17343d;
+  background: #dfeaec;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.risk-alert {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 12px;
+  border: 1px solid #e0a73d;
+  border-left: 5px solid #c27613;
+  border-radius: 8px;
+  color: #452b05;
+  background: #fff7df;
+}
+
+.risk-alert.extreme {
+  border-color: #c54b44;
+  border-left-color: var(--red);
+  color: #551511;
+  background: #fff0ef;
+}
+
+.risk-alert p {
+  margin-bottom: 0;
+}
+
+.hotline-list {
+  display: grid;
+  gap: 6px;
+}
+
+.hotline-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border-radius: 6px;
+  padding: 0 10px;
+  color: #fff;
+  background: var(--red);
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .event-meta,
 .comments {
   color: var(--muted);
   font-size: 0.9rem;
+  max-height: 180px;
+  overflow: auto;
 }
 
 .comment-form {
@@ -307,15 +566,70 @@ textarea {
 
 .marker-popup {
   min-width: 220px;
+  max-width: min(320px, 78vw);
+  max-height: 70vh;
+  overflow: auto;
 }
 
 .marker-popup img {
   display: block;
   width: 100%;
-  max-height: 160px;
+  max-height: 130px;
   object-fit: cover;
   border-radius: 6px;
   margin: 8px 0;
+}
+
+.detail-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(13, 38, 48, 0.55);
+}
+
+.detail-card {
+  width: min(720px, 100%);
+  max-height: min(820px, calc(100vh - 36px));
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 20px 60px rgba(5, 24, 32, 0.32);
+  padding: 18px;
+}
+
+#closeDetailBtn {
+  width: 40px;
+  padding: 0;
+  color: var(--muted);
+  background: #eef3f4;
+  font-size: 1.4rem;
+}
+
+.detail-scroll {
+  max-height: calc(100vh - 150px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.detail-description {
+  white-space: pre-wrap;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.image-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
 }
 
 .badge {
@@ -360,7 +674,8 @@ textarea {
 @media (max-width: 520px) {
   .filter-bar,
   .comment-form,
-  .time-grid {
+  .time-grid,
+  .trash-type-fieldset {
     grid-template-columns: 1fr;
   }
 

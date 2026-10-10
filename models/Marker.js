@@ -46,6 +46,10 @@ const cleanConfirmationSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    imagePaths: {
+      type: [String],
+      default: []
+    },
     createdAt: {
       type: Date,
       default: Date.now
@@ -65,6 +69,25 @@ const markerSchema = new mongoose.Schema(
       type: String,
       enum: ["light", "medium", "heavy", null],
       default: null
+    },
+    quantity: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    carbonSaved: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    trashTypes: {
+      type: [String],
+      default: []
+    },
+    riskLevel: {
+      type: String,
+      enum: ["low", "high", "extreme"],
+      default: "low"
     },
     title: {
       type: String,
@@ -94,6 +117,18 @@ const markerSchema = new mongoose.Schema(
       type: String,
       default: ""
     },
+    creatorUserKey: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: ""
+    },
+    creatorName: {
+      type: String,
+      trim: true,
+      maxlength: 80,
+      default: "匿名使用者"
+    },
     startAt: {
       type: Date,
       default: null
@@ -102,9 +137,42 @@ const markerSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    organizer: {
+      type: String,
+      trim: true,
+      maxlength: 120,
+      default: ""
+    },
+    organizerEmail: {
+      type: String,
+      trim: true,
+      maxlength: 160,
+      default: ""
+    },
+    locationName: {
+      type: String,
+      trim: true,
+      maxlength: 160,
+      default: ""
+    },
+    eventUrl: {
+      type: String,
+      trim: true,
+      maxlength: 500,
+      default: ""
+    },
+    maxParticipants: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    participants: {
+      type: [String],
+      default: []
+    },
     status: {
       type: String,
-      enum: ["active", "cleaned"],
+      enum: ["active", "cleaned", "expired"],
       default: "active"
     },
     cleanedAt: {
@@ -126,6 +194,10 @@ const markerSchema = new mongoose.Schema(
 markerSchema.pre("validate", function normalizeFields(next) {
   if (this.category !== "trash") {
     this.trashLevel = null;
+    this.quantity = 0;
+    this.carbonSaved = 0;
+    this.trashTypes = [];
+    this.riskLevel = "low";
   }
 
   if (!["activity", "beach-clean"].includes(this.category)) {

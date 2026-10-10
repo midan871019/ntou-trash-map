@@ -75,6 +75,11 @@ const markerSchema = new mongoose.Schema(
       min: 0,
       default: 0
     },
+    weightKg: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
     carbonSaved: {
       type: Number,
       min: 0,
@@ -195,6 +200,7 @@ markerSchema.pre("validate", function normalizeFields(next) {
   if (this.category !== "trash") {
     this.trashLevel = null;
     this.quantity = 0;
+    this.weightKg = 0;
     this.carbonSaved = 0;
     this.trashTypes = [];
     this.riskLevel = "low";

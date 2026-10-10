@@ -569,6 +569,8 @@ textarea {
   max-width: min(320px, 78vw);
   max-height: 70vh;
   overflow: auto;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
 }
 
 .marker-popup img {
@@ -610,12 +612,37 @@ textarea {
 
 .detail-scroll {
   max-height: calc(100vh - 150px);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   padding-right: 4px;
 }
 
 .detail-description {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.selected-location-marker span {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #8a989f;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  opacity: 0.92;
+}
+
+.user-card {
+  width: min(460px, 100%);
+}
+
+.user-profile-panel {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .image-grid {

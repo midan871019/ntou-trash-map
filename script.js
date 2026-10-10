@@ -63,6 +63,7 @@ let activeFilter = "all";
 let pendingMarkerId = null;
 let waitingForManualPick = false;
 let userLocationLayer = null;
+let selectedLocationLayer = null;
 let showCleaned = false;
 let showExpired = false;
 let editingMarkerId = null;
@@ -79,6 +80,7 @@ const categorySelect = document.querySelector("#category");
 const trashLevelField = document.querySelector("#trashLevelField");
 const trashAdvancedFields = document.querySelector("#trashAdvancedFields");
 const quantityInput = document.querySelector("#quantityInput");
+const weightKgInput = document.querySelector("#weightKgInput");
 const carbonSavedInput = document.querySelector("#carbonSavedInput");
 const carbonPreview = document.querySelector("#carbonPreview");
 const riskPreview = document.querySelector("#riskPreview");
@@ -95,6 +97,9 @@ const myMarkersList = document.querySelector("#myMarkersList");
 const detailPanel = document.querySelector("#detailPanel");
 const detailTitle = document.querySelector("#detailTitle");
 const detailBody = document.querySelector("#detailBody");
+const userPanel = document.querySelector("#userPanel");
+const userPanelTitle = document.querySelector("#userPanelTitle");
+const userPanelBody = document.querySelector("#userPanelBody");
 
 function getUserKey() {
   const storageKey = "ntouTrashMapUserKey";
@@ -141,6 +146,10 @@ function selectedTrashTypes() {
   return [...markerForm.querySelectorAll('input[name="trashTypes"]:checked')].map((input) => input.value);
 }
 
+function hasPlasticTrash(trashTypes) {
+  return trashTypes.includes("一般塑膠");
+}
+
 function calculateCarbonSaved(quantity) {
   return Math.round(Math.max(0, Number(quantity || 0)) * carbonPerBagKg * 10) / 10;
 }
@@ -171,11 +180,13 @@ function riskAlertHtml(trashTypes, riskLevel) {
 
 function updateTrashAdvancedPreview() {
   const quantity = Math.max(0, Number(quantityInput.value || 0));
-  const carbonSaved = calculateCarbonSaved(quantity);
   const trashTypes = selectedTrashTypes();
+  const showCarbon = hasPlasticTrash(trashTypes);
+  const carbonSaved = showCarbon ? calculateCarbonSaved(quantity) : 0;
   const riskLevel = calculateRiskLevel(trashTypes);
   carbonSavedInput.value = carbonSaved;
   carbonPreview.textContent = `預估碳減量：${carbonSaved} kg CO2e`;
+  carbonPreview.classList.toggle("hidden", !showCarbon);
   riskPreview.innerHTML = riskAlertHtml(trashTypes, riskLevel);
   riskPreview.classList.toggle("hidden", !riskPreview.innerHTML);
 }
@@ -254,8 +265,32 @@ function showToast(message) {
   window.setTimeout(() => toast.classList.add("hidden"), 2600);
 }
 
+function selectedLocationIcon() {
+  return L.divIcon({
+    className: "selected-location-marker",
+    html: '<span></span>',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12]
+  });
+}
+
+function updateSelectedLocationLayer(latlng) {
+  if (selectedLocationLayer) {
+    selectedLocationLayer.setLatLng(latlng);
+  } else {
+    selectedLocationLayer = L.marker([latlng.lat, latlng.lng], { icon: selectedLocationIcon(), interactive: false }).addTo(map);
+  }
+}
+
+function clearSelectedLocationLayer() {
+  if (!selectedLocationLayer) return;
+  map.removeLayer(selectedLocationLayer);
+  selectedLocationLayer = null;
+}
+
 function setSelectedLocation(latlng, source) {
   selectedLatLng = latlng;
+  updateSelectedLocationLayer(latlng);
   pickedLocation.textContent = `${source}：${selectedLatLng.lat.toFixed(6)}, ${selectedLatLng.lng.toFixed(6)}`;
   formPanel.classList.remove("hidden");
   locationChoicePanel.classList.add("hidden");
@@ -380,6 +415,7 @@ function resetMarkerForm() {
   markerForm.querySelector('button[type="submit"]').textContent = "送出回報";
   pickedLocation.textContent = "請先點擊地圖選擇位置。";
   selectedLatLng = null;
+  clearSelectedLocationLayer();
   formError.textContent = "";
   updateFormFields();
 }
@@ -387,12 +423,14 @@ function resetMarkerForm() {
 function startEditingMarker(marker) {
   editingMarkerId = marker._id;
   selectedLatLng = L.latLng(marker.lat, marker.lng);
+  updateSelectedLocationLayer(selectedLatLng);
   formTitle.textContent = "編輯回報";
   markerForm.querySelector('button[type="submit"]').textContent = "儲存修改";
   pickedLocation.textContent = `原標記位置：${marker.lat.toFixed(6)}, ${marker.lng.toFixed(6)}`;
   markerForm.elements.category.value = marker.category;
   markerForm.elements.trashLevel.value = marker.trashLevel || "light";
   markerForm.elements.quantity.value = marker.quantity || "";
+  markerForm.elements.weightKg.value = marker.weightKg || "";
   markerForm.elements.carbonSaved.value = marker.carbonSaved || 0;
   setTrashTypeChecks(marker.trashTypes || []);
   markerForm.elements.displayName.value = marker.creatorName || (currentProfile && currentProfile.displayName) || "";
@@ -446,7 +484,15 @@ function showDetail(marker) {
 async function showPublicProfile(userKey) {
   try {
     const profile = await fetchJson(`/api/users/${encodeURIComponent(userKey)}`);
-    showToast(`${profile.displayName || "匿名使用者"}：${profile.bio || "尚未填寫個人敘述。"}`);
+    userPanelTitle.textContent = profile.displayName || "匿名使用者";
+    userPanelBody.innerHTML = `
+      <div class="user-profile-panel">
+        <p><strong>顯示暱稱</strong><br>${escapeHtml(profile.displayName || "匿名使用者")}</p>
+        <p><strong>個人敘述 / 聯繫方式</strong><br>${escapeHtml(profile.bio || "尚未填寫個人敘述。")}</p>
+        <p class="event-meta">建立時間：${formatDate(profile.createdAt)}</p>
+      </div>
+    `;
+    userPanel.classList.remove("hidden");
   } catch (error) {
     showToast(error.message);
   }
@@ -520,10 +566,13 @@ function popupHtml(marker) {
 function trashMetaHtml(marker) {
   if (marker.category !== "trash") return "";
   const types = (marker.trashTypes || []).map((type) => `<span>${escapeHtml(type)}</span>`).join("");
+  const carbonLine =
+    Number(marker.carbonSaved || 0) > 0 ? `<p>預估塑膠碳減量：${Number(marker.carbonSaved || 0)} kg CO2e</p>` : "";
   return `
     <div class="trash-meta">
       <p>預估數量：${Number(marker.quantity || 0)} 袋 / 件</p>
-      <p>預估碳減量：${Number(marker.carbonSaved || 0)} kg CO2e</p>
+      <p>預估重量：${Number(marker.weightKg || 0)} kg</p>
+      ${carbonLine}
       <p>風險等級：${riskLevelText[marker.riskLevel || "low"]}</p>
       ${types ? `<div class="trash-tags">${types}</div>` : ""}
     </div>
@@ -666,6 +715,7 @@ showExpiredToggle.addEventListener("change", async () => {
 rangeStartInput.addEventListener("change", () => loadMarkers().catch((error) => showToast(error.message)));
 rangeEndInput.addEventListener("change", () => loadMarkers().catch((error) => showToast(error.message)));
 document.querySelector("#closeDetailBtn").addEventListener("click", () => detailPanel.classList.add("hidden"));
+document.querySelector("#closeUserPanelBtn").addEventListener("click", () => userPanel.classList.add("hidden"));
 
 document.querySelectorAll(".filter").forEach((button) => {
   button.addEventListener("click", () => {
@@ -707,7 +757,8 @@ markerForm.addEventListener("submit", async (event) => {
   formData.append("lat", selectedLatLng.lat);
   formData.append("lng", selectedLatLng.lng);
   formData.append("userKey", getUserKey());
-  formData.set("carbonSaved", calculateCarbonSaved(formData.get("quantity")));
+  const currentTrashTypes = formData.getAll("trashTypes");
+  formData.set("carbonSaved", hasPlasticTrash(currentTrashTypes) ? calculateCarbonSaved(formData.get("quantity")) : 0);
 
   const displayName = String(formData.get("displayName") || "").trim() || "匿名使用者";
   formData.set("displayName", displayName);

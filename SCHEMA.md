@@ -9,7 +9,8 @@
 | `category` | String | 必填，只能是 `activity`、`trash`、`beach-clean` |
 | `trashLevel` | String 或 null | 垃圾回報使用，只能是 `light`、`medium`、`heavy` 或 null |
 | `quantity` | Number | 垃圾回報的預估袋數或數量 |
-| `carbonSaved` | Number | 前端依數量估算並傳入的碳減量，單位 kg CO2e |
+| `weightKg` | Number | 垃圾回報的預估重量，單位公斤 |
+| `carbonSaved` | Number | 勾選一般塑膠時，前端依袋數估算並傳入的碳減量，單位 kg CO2e |
 | `trashTypes` | Array | 垃圾具體類別或特殊垃圾勾選 |
 | `riskLevel` | String | `low`、`high` 或 `extreme`，依特殊垃圾類別自動判定 |
 | `title` | String | 必填，最多 120 字 |
@@ -96,7 +97,7 @@
 
 ## 垃圾回報碳足跡與風險
 
-- 前端以 `預估袋數 * 2.5` 估算 `carbonSaved`，送出時連同 `quantity` 儲存。
+- 前端可填 `quantity` 或 `weightKg`；只有勾選「一般塑膠」時，才以 `預估袋數 * 2.5` 估算 `carbonSaved`。
 - `trashTypes` 包含易燃毒化物質、醫療廢棄物、動物屍體、大量魚群死亡或水質污染時判定為 `high`。
 - `trashTypes` 包含爆裂物 / 軍火、海龜 / 鯨豚、疑似非洲豬瘟豬屍時判定為 `extreme`。
 - 高風險與極高風險標記會在表單、Popup 與完整內容顯示「發現、觀察、判斷、處置」四步驟與通報專線。

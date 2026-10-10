@@ -103,9 +103,18 @@ function parseQuantity(value) {
   return Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
 }
 
+function parseWeightKg(value) {
+  const weightKg = Number(value || 0);
+  return Number.isFinite(weightKg) ? Math.max(0, weightKg) : 0;
+}
+
 function parseCarbonSaved(value) {
   const carbonSaved = Number(value || 0);
   return Number.isFinite(carbonSaved) ? Math.max(0, carbonSaved) : 0;
+}
+
+function carbonSavedForTrashTypes(value, trashTypes) {
+  return trashTypes.includes("一般塑膠") ? parseCarbonSaved(value) : 0;
 }
 
 function sanitizeDisplayName(value) {
@@ -336,7 +345,8 @@ app.post(
       category,
       trashLevel,
       quantity: category === "trash" ? parseQuantity(req.body.quantity) : 0,
-      carbonSaved: category === "trash" ? parseCarbonSaved(req.body.carbonSaved) : 0,
+      weightKg: category === "trash" ? parseWeightKg(req.body.weightKg) : 0,
+      carbonSaved: category === "trash" ? carbonSavedForTrashTypes(req.body.carbonSaved, trashTypes) : 0,
       trashTypes,
       riskLevel: category === "trash" ? calculateRiskLevel(trashTypes) : "low",
       title,
@@ -383,7 +393,8 @@ app.put(
     marker.category = category;
     marker.trashLevel = category === "trash" ? String(req.body.trashLevel || "").trim() : null;
     marker.quantity = category === "trash" ? parseQuantity(req.body.quantity) : 0;
-    marker.carbonSaved = category === "trash" ? parseCarbonSaved(req.body.carbonSaved) : 0;
+    marker.weightKg = category === "trash" ? parseWeightKg(req.body.weightKg) : 0;
+    marker.carbonSaved = category === "trash" ? carbonSavedForTrashTypes(req.body.carbonSaved, trashTypes) : 0;
     marker.trashTypes = trashTypes;
     marker.riskLevel = category === "trash" ? calculateRiskLevel(trashTypes) : "low";
     marker.title = String(req.body.title || "").trim();

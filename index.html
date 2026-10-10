@@ -95,8 +95,12 @@
                 預估數量 / 袋數
                 <input name="quantity" id="quantityInput" type="number" min="0" step="1" placeholder="例如：3">
               </label>
+              <label>
+                預估重量（公斤）
+                <input name="weightKg" id="weightKgInput" type="number" min="0" step="0.1" placeholder="例如：12.5">
+              </label>
               <input name="carbonSaved" id="carbonSavedInput" type="hidden" value="0">
-              <div id="carbonPreview" class="carbon-preview">預估碳減量：0 kg CO2e</div>
+              <div id="carbonPreview" class="carbon-preview hidden">預估碳減量：0 kg CO2e</div>
               <fieldset class="trash-type-fieldset">
                 <legend>垃圾類別與特殊狀況</legend>
                 <label><input name="trashTypes" type="checkbox" value="一般塑膠"> 一般塑膠</label>
@@ -206,6 +210,16 @@
           <button id="closeDetailBtn" type="button" aria-label="關閉完整內容">×</button>
         </div>
         <div id="detailBody" class="detail-body"></div>
+      </div>
+    </section>
+
+    <section id="userPanel" class="detail-panel hidden" aria-label="使用者資料">
+      <div class="detail-card user-card">
+        <div class="panel-title">
+          <h2 id="userPanelTitle">使用者資料</h2>
+          <button id="closeUserPanelBtn" type="button" aria-label="關閉使用者資料">×</button>
+        </div>
+        <div id="userPanelBody" class="detail-body"></div>
       </div>
     </section>
 

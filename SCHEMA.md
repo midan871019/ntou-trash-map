@@ -76,6 +76,8 @@
 - `PUT /api/markers/:id`：編輯自己的標記，使用 `multipart/form-data` 並帶入 `userKey`。
 - `DELETE /api/markers/:id`：刪除自己的標記，JSON body 或 query string 需帶入 `userKey`。
 - `POST /api/markers/:id/join`：切換淨灘活動報名 / 取消報名，JSON body 需帶入 `userKey`。
+- `GET /api/markers/:id/participants?userKey=...`：發起人查看淨灘參加者資訊。
+- `GET /api/weather?lat=...&lng=...`：使用 OpenWeatherMap API 查詢座標天氣預報；需設定 `OPENWEATHER_API_KEY`。
 - `GET /api/users/me?userKey=...`：取得或建立目前裝置的個人資料。
 - `PUT /api/users/me`：更新目前裝置的顯示暱稱與個人敘述。
 - `GET /api/users/:userKey`：取得公開個人資料。

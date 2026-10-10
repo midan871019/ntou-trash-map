@@ -242,12 +242,58 @@ function activeMarkerQuery(req) {
   return query;
 }
 
+async function fetchJsonFromUrl(url) {
+  const response = await fetch(url);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.message || "天氣資料暫時無法取得。");
+  }
+  return data;
+}
+
 app.get("/api/health", (req, res) => {
   res.json({
     ok: true,
     database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
   });
 });
+
+app.get(
+  "/api/weather",
+  asyncRoute(async (req, res) => {
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    const apiKey = process.env.OPENWEATHER_API_KEY;
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return res.status(400).json({ message: "座標格式不正確。" });
+    }
+
+    if (!apiKey) {
+      return res.status(503).json({ message: "尚未設定 OPENWEATHER_API_KEY，無法取得即時天氣。" });
+    }
+
+    const url = new URL("https://api.openweathermap.org/data/3.0/onecall");
+    url.searchParams.set("lat", lat);
+    url.searchParams.set("lon", lng);
+    url.searchParams.set("exclude", "minutely,hourly,alerts");
+    url.searchParams.set("units", "metric");
+    url.searchParams.set("lang", "zh_tw");
+    url.searchParams.set("appid", apiKey);
+
+    const data = await fetchJsonFromUrl(url);
+    res.json({
+      source: "OpenWeatherMap",
+      days: (data.daily || []).slice(0, 4).map((day) => ({
+        date: new Date(day.dt * 1000).toISOString(),
+        rainProbability: Math.round(Number(day.pop || 0) * 100),
+        windSpeed: day.wind_speed || 0,
+        summary: day.weather && day.weather[0] ? day.weather[0].description : "無描述",
+        tide: "潮汐資料需串接中央氣象署潮汐 API 或另設定潮汐資料源"
+      }))
+    });
+  })
+);
 
 app.get(
   "/api/markers",
@@ -317,6 +363,42 @@ app.get(
       return res.status(404).json({ message: "找不到使用者資料。" });
     }
     res.json(publicUserProfile(profile));
+  })
+);
+
+app.get(
+  "/api/markers/:id/participants",
+  asyncRoute(async (req, res) => {
+    if (!isObjectId(req.params.id)) {
+      return res.status(400).json({ message: "標記 ID 格式不正確。" });
+    }
+
+    const userKey = String(req.query.userKey || "").trim();
+    const marker = await Marker.findById(req.params.id).lean();
+    if (!marker) {
+      return res.status(404).json({ message: "找不到這筆標記。" });
+    }
+
+    if (marker.category !== "beach-clean") {
+      return res.status(400).json({ message: "只有淨灘活動有參加者資訊。" });
+    }
+
+    if (!canEditMarker(marker, userKey)) {
+      return res.status(403).json({ message: "只有發起人可以查看參加者資訊。" });
+    }
+
+    const profiles = await UserProfile.find({ userKey: { $in: marker.participants || [] } }).lean();
+    const profileMap = new Map(profiles.map((profile) => [profile.userKey, profile]));
+    res.json(
+      (marker.participants || []).map((participantKey) => {
+        const profile = profileMap.get(participantKey);
+        return {
+          userKey: participantKey,
+          displayName: profile ? profile.displayName : "匿名使用者",
+          bio: profile ? profile.bio : ""
+        };
+      })
+    );
   })
 );
 

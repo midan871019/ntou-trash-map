@@ -55,6 +55,8 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 }).addTo(map);
+const markersGroup = L.markerClusterGroup();
+map.addLayer(markersGroup);
 
 let markers = [];
 let markerLayers = new Map();
@@ -100,6 +102,8 @@ const detailBody = document.querySelector("#detailBody");
 const userPanel = document.querySelector("#userPanel");
 const userPanelTitle = document.querySelector("#userPanelTitle");
 const userPanelBody = document.querySelector("#userPanelBody");
+const weatherSummary = document.querySelector("#weatherSummary");
+const weatherForecast = document.querySelector("#weatherForecast");
 
 function getUserKey() {
   const storageKey = "ntouTrashMapUserKey";
@@ -235,6 +239,29 @@ function eventMetaHtml(marker) {
   const url = marker.eventUrl ? `<p class="event-meta"><a href="${escapeHtml(marker.eventUrl)}" target="_blank" rel="noopener">活動 / 報名網址</a></p>` : "";
   const time = marker.startAt ? `<p class="event-meta">${formatDate(marker.startAt)} - ${formatDate(marker.endAt)}</p>` : "";
   return `${organizer}${email}${location}${url}${time}`;
+}
+
+function eventOrganizerCardHtml(marker) {
+  if (!["activity", "beach-clean"].includes(marker.category)) return "";
+  const organizer = marker.organizer || marker.creatorName || "未填寫";
+  const email = marker.organizerEmail || "未填寫";
+  const location = marker.locationName || "未填寫";
+  const url = marker.eventUrl ? `<a href="${escapeHtml(marker.eventUrl)}" target="_blank" rel="noopener">${escapeHtml(marker.eventUrl)}</a>` : "未填寫";
+  const participantButton =
+    marker.category === "beach-clean" && marker.creatorUserKey === getUserKey()
+      ? `<button type="button" class="participants-btn" data-id="${marker._id}">查看參加者資訊</button>`
+      : "";
+  return `
+    <div class="organizer-card">
+      <strong>發起人資訊</strong>
+      <p>主辦 / 發起人：${escapeHtml(organizer)}</p>
+      <p>信箱：${escapeHtml(email)}</p>
+      <p>地點：${escapeHtml(location)}</p>
+      <p>活動 / 報名網址：${url}</p>
+      ${participantButton}
+      <div id="participants-${marker._id}" class="participants-list hidden"></div>
+    </div>
+  `;
 }
 
 function joinStatusHtml(marker) {
@@ -461,6 +488,7 @@ function detailHtml(marker) {
     <div class="detail-scroll">
       <span class="badge" style="background:${categoryColor[marker.category]}">${categoryText[marker.category]}</span>
       ${eventMetaHtml(marker)}
+      ${eventOrganizerCardHtml(marker)}
       ${trashMetaHtml(marker)}
       ${riskAlertHtml(marker.trashTypes || [], marker.riskLevel || "low")}
       ${joinStatusHtml(marker)}
@@ -479,6 +507,34 @@ function showDetail(marker) {
   detailTitle.textContent = marker.title || "完整內容";
   detailBody.innerHTML = detailHtml(marker);
   detailPanel.classList.remove("hidden");
+}
+
+async function loadWeatherForMarker(marker) {
+  weatherSummary.textContent = `${marker.title || "選取標記"} 周邊天氣載入中...`;
+  weatherForecast.innerHTML = "";
+  try {
+    const data = await fetchJson(`/api/weather?lat=${encodeURIComponent(marker.lat)}&lng=${encodeURIComponent(marker.lng)}`);
+    if (!data.days || !data.days.length) {
+      weatherSummary.textContent = "目前沒有可顯示的天氣資料。";
+      return;
+    }
+    weatherSummary.textContent = `${marker.title || "選取標記"} 周邊 4 日預報`;
+    weatherForecast.innerHTML = data.days
+      .map(
+        (day) => `
+          <article class="weather-day">
+            <strong>${formatDate(day.date).split(" ")[0]}</strong>
+            <span>${escapeHtml(day.summary)}</span>
+            <span>降雨 ${day.rainProbability}%</span>
+            <span>風速 ${Number(day.windSpeed).toFixed(1)} m/s</span>
+            <small>${escapeHtml(day.tide)}</small>
+          </article>
+        `
+      )
+      .join("");
+  } catch (error) {
+    weatherSummary.textContent = error.message;
+  }
 }
 
 async function showPublicProfile(userKey) {
@@ -580,7 +636,7 @@ function trashMetaHtml(marker) {
 }
 
 function drawMarkers() {
-  markerLayers.forEach((layer) => map.removeLayer(layer));
+  markersGroup.clearLayers();
   markerLayers = new Map();
 
   markers
@@ -591,12 +647,13 @@ function drawMarkers() {
     })
     .forEach((marker) => {
       const layer = L.marker([marker.lat, marker.lng], { icon: markerIcon(marker) })
-        .addTo(map)
         .bindPopup(popupHtml(marker), {
           maxWidth: 340,
           autoPan: true,
           keepInView: true
         });
+      layer.on("click", () => loadWeatherForMarker(marker));
+      markersGroup.addLayer(layer);
       markerLayers.set(marker._id, layer);
     });
 
@@ -874,6 +931,32 @@ document.addEventListener("click", (event) => {
   if (!marker) return;
   map.setView([marker.lat, marker.lng], 17);
   if (markerLayers.has(marker._id)) markerLayers.get(marker._id).openPopup();
+  loadWeatherForMarker(marker);
+});
+
+document.addEventListener("click", async (event) => {
+  if (!event.target.matches(".participants-btn")) return;
+  const id = event.target.dataset.id;
+  const container = document.querySelector(`#participants-${CSS.escape(id)}`);
+  if (!container) return;
+  try {
+    const participants = await fetchJson(`/api/markers/${id}/participants?userKey=${encodeURIComponent(getUserKey())}`);
+    container.innerHTML = participants.length
+      ? participants
+          .map(
+            (participant) => `
+              <div>
+                <strong>${escapeHtml(participant.displayName)}</strong>
+                <p>${escapeHtml(participant.bio || "未填寫個人敘述")}</p>
+              </div>
+            `
+          )
+          .join("")
+      : "目前尚無參加者。";
+    container.classList.toggle("hidden");
+  } catch (error) {
+    showToast(error.message);
+  }
 });
 
 document.addEventListener("click", async (event) => {

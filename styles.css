@@ -167,6 +167,42 @@ button {
   padding: 6px;
 }
 
+.date-filter select {
+  width: 110px;
+  padding: 6px;
+}
+
+.timeline-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.timeline-control input {
+  width: 190px;
+  padding: 0;
+}
+
+.timeline-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ink);
+  font-weight: 800;
+}
+
 #map {
   height: calc(100vh - 144px);
   min-height: 520px;
@@ -620,6 +656,22 @@ textarea {
   margin: 8px 0;
 }
 
+.popup-image-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.popup-image-grid img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  max-height: none;
+  object-fit: cover;
+  border-radius: 6px;
+  margin: 0;
+}
+
 .detail-panel {
   position: fixed;
   inset: 0;
@@ -805,5 +857,13 @@ textarea {
 
   .weather-widget {
     margin-right: 78px;
+  }
+
+  .timeline-control {
+    display: grid;
+  }
+
+  .timeline-control input {
+    width: 100%;
   }
 }

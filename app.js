@@ -234,9 +234,13 @@ function activeMarkerQuery(req) {
   }
 
   if (startDate || endDate) {
-    query.startAt = {};
-    if (startDate) query.startAt.$gte = startDate;
-    if (endDate) query.startAt.$lte = endDate;
+    query.createdAt = {};
+    if (startDate) query.createdAt.$gte = startDate;
+    if (endDate) {
+      const inclusiveEndDate = new Date(endDate);
+      inclusiveEndDate.setHours(23, 59, 59, 999);
+      query.createdAt.$lte = inclusiveEndDate;
+    }
   }
 
   return query;

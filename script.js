@@ -70,6 +70,10 @@ let showCleaned = false;
 let showExpired = false;
 let editingMarkerId = null;
 let currentProfile = null;
+let allLoadedMarkers = [];
+let timelineMinTime = 0;
+let timelineMaxTime = 0;
+let timelineWindowMs = 30 * 24 * 60 * 60 * 1000;
 
 const locationChoicePanel = document.querySelector("#locationChoicePanel");
 const formPanel = document.querySelector("#formPanel");
@@ -93,6 +97,10 @@ const showCleanedToggle = document.querySelector("#showCleanedToggle");
 const showExpiredToggle = document.querySelector("#showExpiredToggle");
 const rangeStartInput = document.querySelector("#rangeStartInput");
 const rangeEndInput = document.querySelector("#rangeEndInput");
+const timelineSlider = document.querySelector("#timelineSlider");
+const timelineWindowSelect = document.querySelector("#timelineWindowSelect");
+const clearTimelineBtn = document.querySelector("#clearTimelineBtn");
+const timelineLabel = document.querySelector("#timelineLabel");
 const profilePanel = document.querySelector("#profilePanel");
 const profileForm = document.querySelector("#profileForm");
 const myMarkersList = document.querySelector("#myMarkersList");
@@ -140,10 +148,22 @@ function formatDateForInput(value) {
   return local.toISOString().slice(0, 16);
 }
 
+function formatDateForDateInput(date) {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
+}
+
 function markerImages(marker) {
   const images = Array.isArray(marker.imagePaths) && marker.imagePaths.length ? marker.imagePaths : [];
   if (!images.length && marker.imagePath) images.push(marker.imagePath);
   return images;
+}
+
+function buildImageGridHtml(marker, className = "image-grid") {
+  const images = markerImages(marker)
+    .map((imagePath) => `<img src="${escapeHtml(imagePath)}" alt="${escapeHtml(marker.title)}">`)
+    .join("");
+  return images ? `<div class="${className}">${images}</div>` : "";
 }
 
 function selectedTrashTypes() {
@@ -402,6 +422,219 @@ async function fetchJson(url, options) {
   return data;
 }
 
+const offlineDbName = "ntouTrashMapOfflineQueue";
+const offlineStoreName = "markerReports";
+
+function openOfflineDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(offlineDbName, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(offlineStoreName, { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveOfflineReport(url, method, formData) {
+  const db = await openOfflineDb();
+  const fields = [];
+  const files = [];
+  for (const [key, value] of formData.entries()) {
+    if (value instanceof File) {
+      if (value.size) files.push({ key, file: value });
+    } else {
+      fields.push([key, value]);
+    }
+  }
+  const record = {
+    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+    url,
+    method,
+    fields,
+    files,
+    createdAt: new Date().toISOString()
+  };
+
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(offlineStoreName, "readwrite");
+    tx.objectStore(offlineStoreName).put(record);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function offlineRecords() {
+  const db = await openOfflineDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(offlineStoreName, "readonly");
+    const request = tx.objectStore(offlineStoreName).getAll();
+    request.onsuccess = () => resolve(request.result || []);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function deleteOfflineRecord(id) {
+  const db = await openOfflineDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(offlineStoreName, "readwrite");
+    tx.objectStore(offlineStoreName).delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function recordToFormData(record) {
+  const formData = new FormData();
+  record.fields.forEach(([key, value]) => formData.append(key, value));
+  record.files.forEach(({ key, file }) => formData.append(key, file));
+  return formData;
+}
+
+async function syncOfflineReports() {
+  if (!navigator.onLine) return;
+  const records = await offlineRecords();
+  if (!records.length) return;
+
+  let synced = 0;
+  for (const record of records) {
+    try {
+      await fetchJson(record.url, { method: record.method, body: recordToFormData(record) });
+      await deleteOfflineRecord(record.id);
+      synced += 1;
+    } catch (error) {
+      break;
+    }
+  }
+
+  if (synced) {
+    showToast(`已同步 ${synced} 筆離線回報。`);
+    await loadMarkers();
+  }
+}
+
+function readAscii(view, offset, length) {
+  let result = "";
+  for (let index = 0; index < length; index += 1) {
+    result += String.fromCharCode(view.getUint8(offset + index));
+  }
+  return result;
+}
+
+function readRational(view, offset, littleEndian) {
+  const numerator = view.getUint32(offset, littleEndian);
+  const denominator = view.getUint32(offset + 4, littleEndian);
+  return denominator ? numerator / denominator : 0;
+}
+
+function gpsToDecimal(values, ref) {
+  const decimal = values[0] + values[1] / 60 + values[2] / 3600;
+  return ["S", "W"].includes(ref) ? -decimal : decimal;
+}
+
+function parseExifGps(arrayBuffer) {
+  const view = new DataView(arrayBuffer);
+  if (view.getUint16(0) !== 0xffd8) return null;
+
+  let offset = 2;
+  while (offset < view.byteLength) {
+    if (view.getUint8(offset) !== 0xff) return null;
+    const marker = view.getUint8(offset + 1);
+    const length = view.getUint16(offset + 2);
+    if (marker === 0xe1 && readAscii(view, offset + 4, 4) === "Exif") {
+      const tiff = offset + 10;
+      const littleEndian = readAscii(view, tiff, 2) === "II";
+      const firstIfd = tiff + view.getUint32(tiff + 4, littleEndian);
+      const entries = view.getUint16(firstIfd, littleEndian);
+      let gpsIfd = 0;
+
+      for (let index = 0; index < entries; index += 1) {
+        const entry = firstIfd + 2 + index * 12;
+        if (view.getUint16(entry, littleEndian) === 0x8825) {
+          gpsIfd = tiff + view.getUint32(entry + 8, littleEndian);
+          break;
+        }
+      }
+
+      if (!gpsIfd) return null;
+      const gpsEntries = view.getUint16(gpsIfd, littleEndian);
+      let latRef = "";
+      let lngRef = "";
+      let latValues = null;
+      let lngValues = null;
+
+      for (let index = 0; index < gpsEntries; index += 1) {
+        const entry = gpsIfd + 2 + index * 12;
+        const tag = view.getUint16(entry, littleEndian);
+        const valueOffset = tiff + view.getUint32(entry + 8, littleEndian);
+        if (tag === 1) latRef = readAscii(view, entry + 8, 1);
+        if (tag === 3) lngRef = readAscii(view, entry + 8, 1);
+        if (tag === 2) latValues = [0, 8, 16].map((shift) => readRational(view, valueOffset + shift, littleEndian));
+        if (tag === 4) lngValues = [0, 8, 16].map((shift) => readRational(view, valueOffset + shift, littleEndian));
+      }
+
+      if (!latValues || !lngValues || !latRef || !lngRef) return null;
+      return {
+        lat: gpsToDecimal(latValues, latRef),
+        lng: gpsToDecimal(lngValues, lngRef)
+      };
+    }
+    offset += 2 + length;
+  }
+  return null;
+}
+
+async function applyExifLocation(file) {
+  if (!file || !file.type.includes("jpeg")) return;
+  try {
+    const gps = parseExifGps(await file.arrayBuffer());
+    if (!gps) return;
+    const latlng = L.latLng(gps.lat, gps.lng);
+    map.flyTo([latlng.lat, latlng.lng], 17);
+    setSelectedLocation(latlng, "照片 EXIF 座標");
+    showToast("已從照片讀取 GPS 座標。");
+  } catch (error) {
+    // EXIF is optional; silently keep the user's chosen/manual flow.
+  }
+}
+
+function applyTimelineFilter() {
+  if (!allLoadedMarkers.length || !timelineMinTime || !timelineMaxTime) {
+    markers = allLoadedMarkers;
+    drawMarkers();
+    renderEvents();
+    return;
+  }
+
+  const center = Number(timelineSlider.value || timelineMaxTime);
+  const halfWindowMs = timelineWindowMs / 2;
+  const start = center - halfWindowMs;
+  const end = center + halfWindowMs;
+  markers = allLoadedMarkers.filter((marker) => {
+    const createdAt = new Date(marker.createdAt).getTime();
+    return createdAt >= start && createdAt <= end;
+  });
+  rangeStartInput.value = formatDateForDateInput(new Date(start));
+  rangeEndInput.value = formatDateForDateInput(new Date(end));
+  timelineLabel.textContent = `${formatDateForDateInput(new Date(start))} ~ ${formatDateForDateInput(new Date(end))}`;
+  drawMarkers();
+  renderEvents();
+}
+
+function updateTimelineBounds() {
+  const times = allLoadedMarkers.map((marker) => new Date(marker.createdAt).getTime()).filter(Number.isFinite);
+  const now = Date.now();
+  const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+  const earliestMarkerTime = times.length ? Math.min(...times) : thirtyDaysAgo;
+  timelineMinTime = Math.min(thirtyDaysAgo, earliestMarkerTime);
+  timelineMaxTime = now;
+  timelineWindowMs = Number(timelineWindowSelect.value || 30) * 24 * 60 * 60 * 1000;
+  timelineSlider.min = timelineMinTime;
+  timelineSlider.max = timelineMaxTime;
+  timelineSlider.step = 24 * 60 * 60 * 1000;
+  timelineSlider.value = timelineMaxTime - timelineWindowMs / 2;
+}
+
 async function loadProfile() {
   currentProfile = await fetchJson(`/api/users/me?userKey=${encodeURIComponent(getUserKey())}`);
   profileForm.elements.displayName.value = currentProfile.displayName || "";
@@ -555,7 +788,7 @@ async function showPublicProfile(userKey) {
 }
 
 function popupHtml(marker) {
-  const image = markerImages(marker)[0] ? `<img src="${escapeHtml(markerImages(marker)[0])}" alt="${escapeHtml(marker.title)}">` : "";
+  const image = buildImageGridHtml(marker, "popup-image-grid");
   const level = marker.trashLevel ? ` · ${trashLevelText[marker.trashLevel]}` : "";
   const cleanCount = (marker.cleanConfirmations || []).length;
   const cleanThreshold = marker.cleanThreshold || 1;
@@ -698,12 +931,10 @@ function renderEvents() {
 async function loadMarkers() {
   const params = new URLSearchParams();
   if (showExpired) params.set("includeExpired", "true");
-  if (rangeStartInput.value) params.set("startDate", rangeStartInput.value);
-  if (rangeEndInput.value) params.set("endDate", rangeEndInput.value);
   const query = params.toString();
-  markers = await fetchJson(`/api/markers${query ? `?${query}` : ""}`);
-  drawMarkers();
-  renderEvents();
+  allLoadedMarkers = await fetchJson(`/api/markers${query ? `?${query}` : ""}`);
+  updateTimelineBounds();
+  applyTimelineFilter();
 }
 
 function updateFormFields() {
@@ -761,6 +992,10 @@ quantityInput.addEventListener("input", updateTrashAdvancedPreview);
 markerForm.querySelectorAll('input[name="trashTypes"]').forEach((input) => {
   input.addEventListener("change", updateTrashAdvancedPreview);
 });
+markerForm.elements.images.addEventListener("change", (event) => {
+  const [firstImage] = [...event.target.files].filter((file) => file.type.startsWith("image/"));
+  applyExifLocation(firstImage);
+});
 showCleanedToggle.addEventListener("change", () => {
   showCleaned = showCleanedToggle.checked;
   drawMarkers();
@@ -769,8 +1004,31 @@ showExpiredToggle.addEventListener("change", async () => {
   showExpired = showExpiredToggle.checked;
   await loadMarkers();
 });
-rangeStartInput.addEventListener("change", () => loadMarkers().catch((error) => showToast(error.message)));
-rangeEndInput.addEventListener("change", () => loadMarkers().catch((error) => showToast(error.message)));
+rangeStartInput.addEventListener("change", () => {
+  const start = new Date(rangeStartInput.value).getTime();
+  const end = new Date(rangeEndInput.value).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+  timelineWindowMs = Math.max(24 * 60 * 60 * 1000, end - start);
+  timelineSlider.value = start + timelineWindowMs / 2;
+  timelineLabel.textContent = `${rangeStartInput.value} ~ ${rangeEndInput.value}`;
+  markers = allLoadedMarkers.filter((marker) => {
+    const createdAt = new Date(marker.createdAt).getTime();
+    return createdAt >= start && createdAt <= end + 24 * 60 * 60 * 1000 - 1;
+  });
+  drawMarkers();
+  renderEvents();
+});
+rangeEndInput.addEventListener("change", () => rangeStartInput.dispatchEvent(new Event("change")));
+timelineSlider.addEventListener("input", applyTimelineFilter);
+timelineWindowSelect.addEventListener("change", () => {
+  timelineWindowMs = Number(timelineWindowSelect.value || 30) * 24 * 60 * 60 * 1000;
+  applyTimelineFilter();
+});
+clearTimelineBtn.addEventListener("click", () => {
+  timelineWindowSelect.value = "30";
+  updateTimelineBounds();
+  applyTimelineFilter();
+});
 document.querySelector("#closeDetailBtn").addEventListener("click", () => detailPanel.classList.add("hidden"));
 document.querySelector("#closeUserPanelBtn").addEventListener("click", () => userPanel.classList.add("hidden"));
 
@@ -823,6 +1081,13 @@ markerForm.addEventListener("submit", async (event) => {
   try {
     const url = editingMarkerId ? `/api/markers/${editingMarkerId}` : "/api/markers";
     const wasEditing = Boolean(editingMarkerId);
+    if (!navigator.onLine) {
+      await saveOfflineReport(url, editingMarkerId ? "PUT" : "POST", formData);
+      resetMarkerForm();
+      formPanel.classList.add("hidden");
+      showToast("目前離線，回報已暫存，恢復網路後會自動同步。");
+      return;
+    }
     const created = await fetchJson(url, { method: editingMarkerId ? "PUT" : "POST", body: formData });
     pendingMarkerId = created._id;
     currentProfile = await fetchJson("/api/users/me", {
@@ -840,7 +1105,15 @@ markerForm.addEventListener("submit", async (event) => {
     await loadMarkers();
     if (!profilePanel.classList.contains("hidden")) await loadMyMarkers();
   } catch (error) {
-    formError.textContent = error.message;
+    try {
+      const url = editingMarkerId ? `/api/markers/${editingMarkerId}` : "/api/markers";
+      await saveOfflineReport(url, editingMarkerId ? "PUT" : "POST", formData);
+      resetMarkerForm();
+      formPanel.classList.add("hidden");
+      showToast("送出失敗，已暫存回報，恢復網路後會自動同步。");
+    } catch (queueError) {
+      formError.textContent = error.message;
+    }
   }
 });
 
@@ -1023,6 +1296,10 @@ document.addEventListener("click", (event) => {
 });
 
 updateFormFields();
+window.addEventListener("online", () => {
+  syncOfflineReports().catch((error) => showToast(error.message));
+});
+syncOfflineReports().catch(() => null);
 loadProfile()
   .catch(() => null)
   .finally(() => loadMarkers().catch((error) => showToast(error.message)));

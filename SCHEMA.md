@@ -70,7 +70,7 @@
 
 - `GET /api/markers`：取得全部標記，依建立時間由新到舊排序；預設隱藏已過期活動與淨灘。
 - `GET /api/markers?includeExpired=true`：包含歷史活動與淨灘。
-- `GET /api/markers?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD`：依活動開始時間篩選日期範圍。
+- `GET /api/markers?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD`：依標記建立時間 `createdAt` 篩選日期範圍，垃圾回報與活動都會納入。
 - `GET /api/markers/me?userKey=...`：取得該 localStorage 使用者發布過的所有標記。
 - `POST /api/markers`：新增標記，使用 `multipart/form-data`，多張圖片欄位名稱是 `images`。
 - `PUT /api/markers/:id`：編輯自己的標記，使用 `multipart/form-data` 並帶入 `userKey`。

@@ -247,12 +247,78 @@ function activeMarkerQuery(req) {
 }
 
 async function fetchJsonFromUrl(url) {
-  const response = await fetch(url);
+  let response;
+  try {
+    response = await fetch(url);
+  } catch (error) {
+    const networkError = new Error("天氣服務暫時連線失敗，請稍後再試。");
+    networkError.status = 503;
+    throw networkError;
+  }
+
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.message || "天氣資料暫時無法取得。");
+    const weatherErrorMessages = {
+      401: "OPENWEATHER_API_KEY 無效或尚未啟用，請確認金鑰設定。",
+      429: "OpenWeatherMap 查詢額度已用完，請稍後再試或調整方案。"
+    };
+    const error = new Error(weatherErrorMessages[response.status] || data.message || "天氣資料暫時無法取得。");
+    error.status = response.status >= 500 ? 502 : response.status;
+    throw error;
   }
   return data;
+}
+
+function openWeatherUrl(pathname, lat, lng, apiKey) {
+  const url = new URL(`https://api.openweathermap.org${pathname}`);
+  url.searchParams.set("lat", lat);
+  url.searchParams.set("lon", lng);
+  url.searchParams.set("units", "metric");
+  url.searchParams.set("lang", "zh_tw");
+  url.searchParams.set("appid", apiKey);
+  return url;
+}
+
+function oneCallDays(data) {
+  return (data.daily || []).slice(0, 4).map((day) => ({
+    date: new Date(day.dt * 1000).toISOString(),
+    rainProbability: Math.round(Number(day.pop || 0) * 100),
+    windSpeed: day.wind_speed || 0,
+    summary: day.weather && day.weather[0] ? day.weather[0].description : "無描述",
+    tide: "潮汐資料需串接中央氣象署潮汐 API 或另設定潮汐資料源"
+  }));
+}
+
+function forecastDays(data) {
+  const days = new Map();
+  (data.list || []).forEach((item) => {
+    const date = new Date(item.dt * 1000);
+    const key = date.toISOString().slice(0, 10);
+    if (!days.has(key)) {
+      days.set(key, {
+        date: date.toISOString(),
+        rainProbability: 0,
+        windSpeedTotal: 0,
+        count: 0,
+        summaries: new Map()
+      });
+    }
+
+    const day = days.get(key);
+    const summary = item.weather && item.weather[0] ? item.weather[0].description : "無描述";
+    day.rainProbability = Math.max(day.rainProbability, Math.round(Number(item.pop || 0) * 100));
+    day.windSpeedTotal += Number(item.wind && item.wind.speed ? item.wind.speed : 0);
+    day.count += 1;
+    day.summaries.set(summary, (day.summaries.get(summary) || 0) + 1);
+  });
+
+  return [...days.values()].slice(0, 4).map((day) => ({
+    date: day.date,
+    rainProbability: day.rainProbability,
+    windSpeed: day.count ? day.windSpeedTotal / day.count : 0,
+    summary: [...day.summaries.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "無描述",
+    tide: "潮汐資料需串接中央氣象署潮汐 API 或另設定潮汐資料源"
+  }));
 }
 
 app.get("/api/health", (req, res) => {
@@ -273,28 +339,32 @@ app.get(
       return res.status(400).json({ message: "座標格式不正確。" });
     }
 
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      return res.status(400).json({ message: "座標超出可查詢範圍。" });
+    }
+
     if (!apiKey) {
       return res.status(503).json({ message: "尚未設定 OPENWEATHER_API_KEY，無法取得即時天氣。" });
     }
 
-    const url = new URL("https://api.openweathermap.org/data/3.0/onecall");
-    url.searchParams.set("lat", lat);
-    url.searchParams.set("lon", lng);
-    url.searchParams.set("exclude", "minutely,hourly,alerts");
-    url.searchParams.set("units", "metric");
-    url.searchParams.set("lang", "zh_tw");
-    url.searchParams.set("appid", apiKey);
+    const oneCallUrl = openWeatherUrl("/data/3.0/onecall", lat, lng, apiKey);
+    oneCallUrl.searchParams.set("exclude", "minutely,hourly,alerts");
 
-    const data = await fetchJsonFromUrl(url);
+    let source = "OpenWeatherMap One Call 3.0";
+    let days;
+    try {
+      const data = await fetchJsonFromUrl(oneCallUrl);
+      days = oneCallDays(data);
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      const forecastData = await fetchJsonFromUrl(openWeatherUrl("/data/2.5/forecast", lat, lng, apiKey));
+      source = "OpenWeatherMap 5 day / 3 hour forecast";
+      days = forecastDays(forecastData);
+    }
+
     res.json({
-      source: "OpenWeatherMap",
-      days: (data.daily || []).slice(0, 4).map((day) => ({
-        date: new Date(day.dt * 1000).toISOString(),
-        rainProbability: Math.round(Number(day.pop || 0) * 100),
-        windSpeed: day.wind_speed || 0,
-        summary: day.weather && day.weather[0] ? day.weather[0].description : "無描述",
-        tide: "潮汐資料需串接中央氣象署潮汐 API 或另設定潮汐資料源"
-      }))
+      source,
+      days
     });
   })
 );
@@ -686,6 +756,10 @@ app.use((err, req, res, next) => {
 
   if (err.name === "ValidationError") {
     return res.status(400).json({ message: Object.values(err.errors)[0].message });
+  }
+
+  if (err.status) {
+    return res.status(err.status).json({ message: err.message || "服務暫時無法處理。" });
   }
 
   console.error(err);

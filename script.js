@@ -161,7 +161,7 @@ function markerImages(marker) {
 
 function buildImageGridHtml(marker, className = "image-grid") {
   const images = markerImages(marker)
-    .map((imagePath) => `<img src="${escapeHtml(imagePath)}" alt="${escapeHtml(marker.title)}">`)
+    .map((imagePath) => `<img src="${escapeHtml(imagePath)}" alt="${escapeHtml(marker.title)}" loading="lazy" onerror="this.remove()">`)
     .join("");
   return images ? `<div class="${className}">${images}</div>` : "";
 }
@@ -712,7 +712,7 @@ function startEditingMarker(marker) {
 
 function detailHtml(marker) {
   const images = markerImages(marker)
-    .map((imagePath) => `<img src="${escapeHtml(imagePath)}" alt="${escapeHtml(marker.title)}">`)
+    .map((imagePath) => `<img src="${escapeHtml(imagePath)}" alt="${escapeHtml(marker.title)}" loading="lazy" onerror="this.remove()">`)
     .join("");
   const comments = (marker.comments || [])
     .map((comment) => `<div>${escapeHtml(comment.text)}<br><small>${escapeHtml(comment.author)} · ${formatDate(comment.createdAt)}</small></div>`)
@@ -809,7 +809,7 @@ function popupHtml(marker) {
     marker.status === "cleaned"
       ? `
         <p class="event-meta">已清理：${formatDate(marker.cleanedAt)}</p>
-        ${latestCleanImage ? `<img src="${escapeHtml(latestCleanImage.imagePath)}" alt="清理後照片">` : ""}
+        ${latestCleanImage ? `<img src="${escapeHtml(latestCleanImage.imagePath)}" alt="清理後照片" loading="lazy" onerror="this.remove()">` : ""}
       `
       : "";
   const cleanForm =
